@@ -1,3 +1,7 @@
+"""依赖与模拟器探测（二）：动作集、backup/restore 是否可用、能否建环境、备份还原是否精确。
+
+第 E 段最关键——mario_par.py 的并行重放法依赖"备份/还原后位置分毫不差"，这里就是验证它。
+"""
 import contextlib, io, inspect, os, traceback, warnings
 
 warnings.filterwarnings("ignore")
@@ -44,6 +48,7 @@ if env is not None:
     print("\n=== E. wrap + reset + step ===")
     try:
         env = JoypadSpace(env, SIMPLE_MOVEMENT)
+        # 顺着包装链走到真正持有 RAM 的那一层（nes_py 的 NESEnv）
         e = env
         while not hasattr(e, "ram"):
             e = e.env
@@ -54,12 +59,13 @@ if env is not None:
             obs, rew, term, trunc, info = env.step(3)  # run right
         print("step OK; x_pos =", info.get("x_pos"), "flag_get =", info.get("flag_get"))
         print("ram[0x6D],ram[0x86] =", int(e.ram[0x6D]), int(e.ram[0x86]))
+        # x 坐标是两个字节拼出来的：0x6D 高位、0x86 低位
         e._backup(); 
         x0 = int(e.ram[0x6D])*256+int(e.ram[0x86])
         for i in range(60):
             env.step(4)
         x1 = int(e.ram[0x6D])*256+int(e.ram[0x86])
-        e._restore(); e.done = False
+        e._restore(); e.done = False       # _restore 之后必须手动把 done 清掉
         x2 = int(e.ram[0x6D])*256+int(e.ram[0x86])
         print(f"backup/restore: x0={x0} after60={x1} restored={x2} -> {'EXACT' if x0==x2 else 'MISMATCH'}")
         env.close()

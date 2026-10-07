@@ -1,13 +1,13 @@
-"""Range downloader for the GGUF repositories, tuned for the links this machine gets (~25-40 MB/s).
+"""GGUF 仓库的 Range 分段下载器，按这台机器的实测速度调过（约 25-40 MB/s）。
 
-Writes straight into the destination file, so there are no part files left behind.
-Resume: re-running continues from the chunks already recorded in <dest>.progress.json.
+直接写进目标文件本身，所以不会留下任何分片残留。
+断点续传：再次运行会从 <dest>.progress.json 里已记录的块继续。
 
-  python fetch_model.py <repo> <file.gguf>            # e.g. StartLux-Decision-2B-Q8_0-GGUF StartLux-Decision-2B-Q8_0.gguf
-  python fetch_model.py <repo> --config-only          # just config.json + decision_config.json
+  python fetch_model.py <repo> <file.gguf>            # 例如 StartLux-Decision-2B-Q8_0-GGUF StartLux-Decision-2B-Q8_0.gguf
+  python fetch_model.py <repo> --config-only          # 只取 config.json + decision_config.json
 
-Every StartLux GGUF repo on ModelScope ships the .gguf plus config.json and decision_config.json;
-those two JSONs are all this setup needs next to the weights.
+ModelScope 上每个 StartLux GGUF 仓库都同时放了 .gguf 和 config.json、decision_config.json，
+这两个 JSON 就是本套部署在权重旁边所需的全部东西。
 """
 import json
 import os
@@ -24,6 +24,7 @@ LOCK = threading.Lock()
 
 
 def total_size(url):
+    # 只取第一个字节，从 Content-Range 里读出文件总长
     req = urllib.request.Request(url, headers={**UA, "Range": "bytes=0-0"})
     with urllib.request.urlopen(req, timeout=60) as r:
         cr = r.headers.get("Content-Range")
@@ -34,6 +35,7 @@ def total_size(url):
 
 
 def fetch(url, dest, start, end, i, done, log):
+    """下载一块区间并原地写回 dest；最多重试 60 次，每次间隔 1.5 秒。"""
     if i in done:
         return True
     for attempt in range(60):
@@ -59,7 +61,7 @@ def get_json(url, dest):
     req = urllib.request.Request(url, headers=UA)
     with urllib.request.urlopen(req, timeout=60) as r:
         data = r.read()
-    json.loads(data)
+    json.loads(data)          # 先校验是合法 JSON，再落盘
     open(dest, "wb").write(data)
     return len(data)
 
@@ -91,6 +93,7 @@ def main():
     cs = chunk_mb << 20
     ranges = [(s, min(s + cs - 1, n - 1)) for s in range(0, n, cs)]
     done = set(json.load(open(prog))) if os.path.exists(prog) else set()
+    # 目标文件不存在或长度不符（上次没下完）就重开，进度清零
     if not os.path.exists(dest) or os.path.getsize(dest) != n:
         with open(dest, "wb") as f:
             f.truncate(n)
@@ -101,7 +104,7 @@ def main():
         futs = [ex.submit(fetch, url, dest, s, e, i, done, log) for i, (s, e) in enumerate(ranges)]
         for k, f in enumerate(futs):
             f.result()
-            if (k + 1) % 40 == 0:
+            if (k + 1) % 40 == 0:      # 每 40 块落一次盘，断电也只丢 40 块
                 with LOCK:
                     json.dump(sorted(done), open(prog, "w"))
                 print(f"  {k+1}/{len(ranges)} chunks, {time.time()-t0:.0f}s", flush=True)
@@ -111,7 +114,7 @@ def main():
         json.dump(sorted(done), open(prog, "w"))
     print(f"DONE ok={ok} size={os.path.getsize(dest)} in {el:.0f}s ({n/1e6/max(el,1):.1f} MB/s)")
     if ok:
-        os.remove(prog)
+        os.remove(prog)      # 全部成功才删进度文件，否则留着重跑
 
 
 if __name__ == "__main__":

@@ -200,11 +200,45 @@ due to non-trivial __cinit__`）、也没有 buffer 协议、没有 `tobytes()`*
 于是每次决策 Mario 要盲跑 136 帧（2.26 s），5 次决策就撞死在 x=684。这个模式需要 ~0.4 s 的延迟
 （上游 Jev 是 0.38 s）。要用它就得上更快的机器或更小的提示词。
 
+## 单次决策：抓一份真实请求，用 demo_call 打它
+
+不必开整局也能看"模型在马里奥里到底被问了什么"。`capture_request.py` 直接调上游 `Sim.outcome()`
+跑完 11 个选项（和 `branch.py` 同一条代码路径），把模型真正会 POST 的 body 原样落盘：
+
+```bash
+P=/c/Users/Libai/.workbuddy/binaries/python/envs/mario/Scripts/python.exe
+"$P" -u capture_request.py --at 1                  # 写 mario-demo-request.json
+../local-run/demo_call.py --file mario-demo-request.json
+```
+
+`--at N` = 先按住 `run right` 走 N 次决策再抓。注意 `run right` 会径直撞上第一只板栗仔
+（x≈315 处死），`--at` 给大了脚本会明确报错让你调小。
+
+抓 frame 136（`--at 1`，x=201）那一次，`criteria` 与录像的 `outcomes` **逐条完全一致**，实测回答
+也复现了录像：
+
+| | |
+|---|---|
+| 请求体 | 4599 字节 / 11 个选项 / `input_tokens=1417` |
+| 实测回答 | `bounce on the spring behind`（p=0.175）—— 录像 frame 136 的选择与 `p=0.18` |
+| 延迟 | 冷 4755 ms；同请求重发全命中缓存 89 ms |
+
+11 选项的完整分布很说明问题：唯一**必死**的选项 `run right`（"dies in 0.6 s"）拿到最低的 0.017，
+模型确实读懂了"会死"；但它选中的 `bounce on the spring behind` 也只有 0.175——均匀分布是 0.091，
+只是略高，谈不上有把握。
+
+（`live.py` 问的是**另一套问题**：9 个原子动作 `stand`/`walk right`/`jump right`/`run right`/
+`run and jump right`/`jump in place`/`walk left`/`hop right`/`back off for a run-up`，附带
+`RULES + GRID_LEGEND` 和 13x20 的字符网格。`branch.py` 这套是"先模拟再描述"，
+选项文本是仿真出来的结果句，没有网格。）
+
 ## 文件
 
 ```
 mario/
   mario_launch.py           启动器：兼容垫片 + 本地 URL 重定向 + 决策进度探针 + --parallel
+  capture_request.py        抓一份真实的 branch 决策请求 -> mario-demo-request.json
+  mario-demo-request.json   抓好的样例请求，可直接喂给 ../local-run/demo_call.py
   mario_par.py              --parallel 的实现：进程池 + 按键历史重放（原因见上文）
   jev-mario-main/           官方 harness，逐字节未改动
     branch.py               分支 harness（官方 README 的演示用的是这个）

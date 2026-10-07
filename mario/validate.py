@@ -1,7 +1,7 @@
-"""Two checks before the real run.
+"""正式开跑之前的两项检查。
 
-1) Contract: post exactly what branch.ask_jev posts, to the local server on 8090.
-2) Cost: time one Sim.outcome() so the branch search's wall time can be estimated.
+1) 接口契约：把 branch.ask_jev 会发的 body 一模一样地打给本地 8090 服务。
+2) 时间成本：给一次 Sim.outcome() 计时，好估算整局分支搜索的墙钟时间。
 """
 import sys, time, json, warnings
 from pathlib import Path
@@ -10,6 +10,7 @@ warnings.filterwarnings("ignore")
 HERE = Path(__file__).resolve().parent
 HARNESS = HERE / "jev-mario-main"
 
+# 同一套兼容垫片：gym-super-mario-bros 9.x 不接受 apply_api_compatibility，丢掉再调
 import gym_super_mario_bros as gsmb
 _make = gsmb.make
 gsmb.make = lambda id, *a, **kw: (kw.pop("apply_api_compatibility", None), _make(id, *a, **kw))[1]
@@ -25,6 +26,7 @@ URL = "http://127.0.0.1:8090/v1/systemone"
 print("=" * 70)
 print("1) CONTRACT TEST -- same body branch.ask_jev builds, 11 options")
 print("=" * 70)
+# 手写的 11 条 outcome，形状与真实仿真一致，用来验证接口不需要真开模拟器
 outcomes = {
     "run right": {"dead": False, "flag": False, "dx": 6, "frames": 60, "on_ground": True,
                   "alive_paths": 12, "best_gain": 14, "best_path": ["run right", "jump right"]},
@@ -66,6 +68,7 @@ print()
 print("=" * 70)
 print("2) EMULATOR COST -- time the branching search for one decision")
 print("=" * 70)
+# 先单测一次，再整轮 11 选项，由此推算整局总耗时
 t0 = time.perf_counter()
 sim = branch.Sim("1-1")
 print(f"  env build+reset: {time.perf_counter()-t0:.2f} s")

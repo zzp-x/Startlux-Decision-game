@@ -1,0 +1,38 @@
+{
+  "state": {
+    "situation": "No wall ahead. There are 4 tiles of clear ground behind Mario for a run-up. Solid ground ahead. Enemies: a goomba 9 tiles ahead at ground level. Mario is on the ground, running at full speed. A jump from this speed clears 5 tiles high and 9 tiles far; at full running speed it clears 5 high and 9 far. Blocks overhead 3 tiles up cap the jump: it would land about 4 tiles ahead instead of 9. A full jump right now would land about 4 tiles ahead; a hop about 5. The screen shows 15 tiles ahead; enemies beyond that are unknown until Mario moves closer.",
+    "outcomes": {
+      "run right": "dies in 0.6 s",
+      "run and jump right": "alive after 1.1 s, +10 tiles, on the ground; 26 of 36 continuations survive, best +19 more via 'run then jump' then 'run then jump'",
+      "run then jump": "alive after 1.7 s, +12 tiles, on the ground, wall 2 tall 3 tiles ahead; 29 of 36 continuations survive, best +19 more via 'run then jump' then 'short run then jump'",
+      "short run then jump": "alive after 1.5 s, +14 tiles, on the ground, wall 2 tall 1 tiles ahead; 35 of 36 continuations survive, best +18 more via 'jump right' then 'short run then jump'",
+      "jump right": "alive after 1.1 s, +8 tiles, on the ground; 36 of 36 continuations survive, best +24 more via 'short run then jump' then 'jump right'",
+      "hop right": "alive after 1.1 s, +2 tiles, on the ground, enemy 4 tiles ahead; 11 of 36 continuations survive, best +17 more via 'short run then jump' then 'jump right'",
+      "jump in place": "alive after 1.1 s, +9 tiles, on the ground; 26 of 36 continuations survive, best +20 more via 'short run then jump' then 'jump right'",
+      "stand": "alive after 1.1 s, +3 tiles, on the ground, enemy 3 tiles ahead; 5 of 36 continuations survive, best +6 more via 'walk left' then 'run then jump'",
+      "walk left": "alive after 1.1 s, -4 tiles, on the ground, enemy 9 tiles ahead; 19 of 36 continuations survive, best +27 more via 'run then jump' then 'short run then jump'",
+      "bounce on the spring behind": "alive after 2.3 s, +14 tiles, on the ground, wall 2 tall 1 tiles ahead; 34 of 36 continuations survive, best +18 more via 'run and jump right' then 'short run then jump'",
+      "hop back onto the ledge behind": "alive after 0.8 s, -1 tiles, on the ground, enemy 7 tiles ahead; 21 of 36 continuations survive, best +24 more via 'run then jump' then 'short run then jump'"
+    }
+  },
+  "model": "StartLux-Decision-0.8B-Q8_0-GGUF",
+  "questions": {
+    "action": {
+      "type": "choice",
+      "instructions": "You control Mario. Each option below says what actually happens if Mario does it for the next second and then keeps going, measured in the game itself. Pick the option that makes the most progress toward the flag (to the right) without dying. A dead end is an option after which every continuation dies; never pick one while an alternative survives.",
+      "criteria": {
+        "run right": "dies in 0.6 s",
+        "run and jump right": "alive after 1.1 s, +10 tiles, on the ground; 26 of 36 continuations survive, best +19 more via 'run then jump' then 'run then jump'",
+        "run then jump": "alive after 1.7 s, +12 tiles, on the ground, wall 2 tall 3 tiles ahead; 29 of 36 continuations survive, best +19 more via 'run then jump' then 'short run then jump'",
+        "short run then jump": "alive after 1.5 s, +14 tiles, on the ground, wall 2 tall 1 tiles ahead; 35 of 36 continuations survive, best +18 more via 'jump right' then 'short run then jump'",
+        "jump right": "alive after 1.1 s, +8 tiles, on the ground; 36 of 36 continuations survive, best +24 more via 'short run then jump' then 'jump right'",
+        "hop right": "alive after 1.1 s, +2 tiles, on the ground, enemy 4 tiles ahead; 11 of 36 continuations survive, best +17 more via 'short run then jump' then 'jump right'",
+        "jump in place": "alive after 1.1 s, +9 tiles, on the ground; 26 of 36 continuations survive, best +20 more via 'short run then jump' then 'jump right'",
+        "stand": "alive after 1.1 s, +3 tiles, on the ground, enemy 3 tiles ahead; 5 of 36 continuations survive, best +6 more via 'walk left' then 'run then jump'",
+        "walk left": "alive after 1.1 s, -4 tiles, on the ground, enemy 9 tiles ahead; 19 of 36 continuations survive, best +27 more via 'run then jump' then 'short run then jump'",
+        "bounce on the spring behind": "alive after 2.3 s, +14 tiles, on the ground, wall 2 tall 1 tiles ahead; 34 of 36 continuations survive, best +18 more via 'run and jump right' then 'short run then jump'",
+        "hop back onto the ledge behind": "alive after 0.8 s, -1 tiles, on the ground, enemy 7 tiles ahead; 21 of 36 continuations survive, best +24 more via 'run then jump' then 'short run then jump'"
+      }
+    }
+  }
+}

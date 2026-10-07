@@ -1,38 +1,35 @@
-"""Parallel option evaluation for the unmodified 4esv/jev-mario harness.
+"""为未经改动的 4esv/jev-mario harness 做选项并行评估。
 
-Why there is something to parallelise
--------------------------------------
-`branch.py` evaluates a decision from one emulator snapshot: for each of the 11 options it plays the
-option for one second (HORIZON frames, held until landing) and then all 6x6 two-move continuations
-from where that ended.  Every option starts from the same snapshot, so the 11 rolls are independent
-of each other.  Running them one after another is what makes a decision cost ~138 s on this machine;
-the rolls are what this module fans out over a process pool.
+为什么有东西可以并行
+--------------------
+`branch.py` 从同一个模拟器快照出发评估一次决策：对 11 个选项中的每一个，先把它跑一秒
+（HORIZON 帧，跳起后一直按到落地），再从落点跑完 6x6 共 36 条两步后续路径。每个选项都从
+同一个快照起步，所以这 11 次推演彼此独立。串行跑它们，就是本机上一次决策要花约 138 秒的原因；
+本模块把这一批推演扇出到一个进程池上。
 
-How a worker is put in the right place
---------------------------------------
-The obvious transport would be a snapshot: `nes-py 9.0.1` exposes `NESEnv.dump_state()`, but it returns
-an opaque Cython `NativeStateSnapshot` that supports neither pickling nor the buffer protocol, so it
-cannot leave the process.  (Measured, not assumed: `pickle.dumps` -> "no default __reduce__ due to
-non-trivial __cinit__".)
+worker 怎么被摆到正确的位置
+--------------------------
+最自然的传输方式本该是快照：`nes-py 9.0.1` 提供了 `NESEnv.dump_state()`，但它返回的是不透明的
+Cython `NativeStateSnapshot`，既不支持 pickle 也不支持 buffer 协议，所以出不了进程。
+（这是实测结论不是猜测：`pickle.dumps` 报 "no default __reduce__ due to non-trivial __cinit__"。）
 
-So the workers replay instead.  The emulator is deterministic, and the parent records the exact input
-history it applies to its own env -- `Sim.step(action, record)` is called with `record` set for real
-steps and `record=None` for simulated ones, which makes the real path exactly the steps taken with a
-record.  A worker replays that history from `reset()` and lands on the same state bit for bit; because
-decisions only ever append to the history, a worker that already replayed a prefix just plays the new
-frames.  After a worker is positioned, it runs *upstream's own* `Sim.outcome()`, so the option
-semantics are unchanged by construction -- this module adds no simulation logic of its own.
+于是改成让 worker 重放。模拟器是确定性的，而父进程会记录自己施加在 env 上的精确输入历史——
+`Sim.step(action, record)` 在真实推进时带 `record`，在模拟分支时传 `record=None`，
+因此"真实路径"恰好就是所有带 record 的那些步。worker 从 `reset()` 重放这段历史，
+就能逐位落到同一个状态；又因为决策只会往历史上追加，已经重放过前缀的 worker 只需接着放新增的帧。
+摆好位置之后，worker 跑的是**上游自己的** `Sim.outcome()`，所以选项语义在构造上就没有改变——
+本模块没有添加任何自己的模拟逻辑。
 
-Nothing in jev-mario-main/ is modified: branch.py is executed into a private namespace and only its
-`Sim` class is extended from the outside.
+jev-mario-main/ 里没有任何东西被修改：branch.py 被 exec 进一个私有命名空间，只有它的
+`Sim` 类是从外部扩展的。
 
-Correctness note on the skipped state
--------------------------------------
-`gym_super_mario_bros` keeps Python-side caches, but they are all reward deltas (`_x_position_max`,
-`_time_last`, `_score_last`, `_coins_last`, `_status_last`), and branch.py never reads the reward.
-Everything it does read -- `_is_dying`, `_is_dead`, `_flag_get`, `_time`, x, airborne -- is a direct
-RAM read.  `probe_par.py` verifies the replay lands on an identical RAM and screen, and that the 11
-outcome dicts match the serial path exactly.
+关于被跳过的那些状态，正确性说明
+--------------------------------
+`gym_super_mario_bros` 保留了一些 Python 侧的缓存，但全都是奖励增量
+（`_x_position_max`、`_time_last`、`_score_last`、`_coins_last`、`_status_last`），
+而 branch.py 从不读奖励。它真正读的东西——`_is_dying`、`_is_dead`、`_flag_get`、`_time`、
+x 坐标、是否在空中——全都是直接读 RAM。`probe_par.py` 验证了重放后 RAM 与画面完全一致，
+且 11 份 outcome 字典与串行路径逐字段相同。
 """
 import ast
 import hashlib
@@ -46,19 +43,18 @@ HERE = Path(__file__).resolve().parent
 HARNESS = HERE / "jev-mario-main"
 BRANCH = HARNESS / "branch.py"
 
-# branch.py and play.py import each other as top-level modules, so the harness directory has to be
-# importable in every process that loads it -- the parent and every pool worker.
+# branch.py 和 play.py 互相以顶层模块的方式 import，所以每个加载它们的进程（父进程和每个
+# 池 worker）里 harness 目录都必须可导入。
 if str(HARNESS) not in sys.path:
     sys.path.insert(0, str(HARNESS))
 
 
 def apply_shim():
-    """Tolerate `apply_api_compatibility`, which branch.py passes to make().
+    """容忍 branch.py 传给 make() 的 `apply_api_compatibility`。
 
-    gym-super-mario-bros 9.x is built on gymnasium, which dropped that kwarg; the 7.4.0 pin from
-    upstream's pyproject.toml (gym 0.26.2) accepts it.  So the call is made as upstream wrote it and
-    only retried without the kwarg if this stack is the one that rejects it -- which keeps the same
-    launcher usable against either stack (host venv here, official pins in the container).
+    gym-super-mario-bros 9.x 建在 gymnasium 上，后者已经删掉了这个 kwarg；而上游 pyproject.toml
+    钉的 7.4.0（gym 0.26.2）接受它。所以这里按上游原样调用，只有当本栈拒绝时才去掉 kwarg 重试——
+    这样同一个启动器对两种栈都能用（本机 venv，以及容器里的官方 pin）。
     """
     import gym_super_mario_bros as gsmb
 
@@ -66,7 +62,7 @@ def apply_shim():
         return
     raw_make = gsmb.make
 
-    def make(env_id, *args, **kwargs):  # noqa: A002 - mirror upstream signature
+    def make(env_id, *args, **kwargs):  # noqa: A002 - 与上游签名保持一致
         try:
             return raw_make(env_id, *args, **kwargs)
         except TypeError as exc:
@@ -84,25 +80,25 @@ def _branch_source() -> str:
 
 
 def load_branch() -> dict:
-    """Execute upstream branch.py into a private namespace; its __main__ guard does not fire."""
+    """把上游 branch.py 执行进一个私有命名空间；它的 __main__ 守卫不会触发。"""
     ns = {"__name__": "jev_branch", "__file__": str(BRANCH)}
-    exec(compile(_branch_source(), str(BRANCH), "exec"), ns)  # noqa: S102 - upstream file
+    exec(compile(_branch_source(), str(BRANCH), "exec"), ns)  # noqa: S102 - 上游文件
     return ns
 
 
 def run_main_block(ns: dict) -> None:
-    """Run upstream's `if __name__ == "__main__":` body, so its CLI is unchanged."""
+    """执行上游 `if __name__ == "__main__":` 里的那段，从而它的 CLI 保持不变。"""
     for node in ast.parse(_branch_source()).body:
         if (isinstance(node, ast.If) and isinstance(node.test, ast.Compare)
                 and isinstance(node.test.left, ast.Name) and node.test.left.id == "__name__"):
             ns["__name__"] = "__main__"
             body = ast.Module(body=node.body, type_ignores=[])
-            exec(compile(body, str(BRANCH), "exec"), ns)  # noqa: S102 - upstream file
+            exec(compile(body, str(BRANCH), "exec"), ns)  # noqa: S102 - 上游文件
             return
     raise SystemExit("branch.py: no __main__ guard found")
 
 
-# --------------------------------------------------------------------------- worker side
+# --------------------------------------------------------------------------- worker 侧
 _W: dict = {}
 
 
@@ -129,12 +125,12 @@ def _ensure_sim(level: str):
 
 
 def _position(sim, level: str, hist: list) -> None:
-    """Replay the parent's real input history so this worker's emulator matches its state."""
+    """重放父进程的真实输入历史，让本 worker 的模拟器与父进程状态一致。"""
     cur = _W["hist"]
     if len(hist) >= len(cur) and hist[: len(cur)] == cur:
-        new = hist[len(cur):]  # the common case: the decision only appended frames
-    else:  # history is not a continuation of what this worker played: start from a clean reset
-        sim.core._has_backup = False  # otherwise NESEnv.reset() restores our backup slot instead
+        new = hist[len(cur):]  # 常见情况：上一次决策之后只是追加了若干帧
+    else:  # 历史不是本 worker 已放过的延续：从头干净重置
+        sim.core._has_backup = False  # 否则 NESEnv.reset() 会去还原我们那个备份槽
         sim.env.reset()
         _W["hist"] = []
         new = hist
@@ -144,7 +140,7 @@ def _position(sim, level: str, hist: list) -> None:
 
 
 def _worker_outcome(task: tuple) -> tuple:
-    """Position this worker at the parent's state and run upstream Sim.outcome() on it."""
+    """把本 worker 摆到父进程的状态，然后跑上游的 Sim.outcome()。"""
     level, hist, info, name = task
     sim = _ensure_sim(level)
     _position(sim, level, hist)
@@ -155,8 +151,8 @@ def _worker_outcome(task: tuple) -> tuple:
 
 
 def _worker_check_state(task: tuple) -> dict:
-    """Replay the parent's history and report the resulting RAM and screen, so the parent can compare
-    them with its own (this is the cross-process fidelity check, not a same-process one)."""
+    """重放父进程历史并回报得到的 RAM 与画面，供父进程与自己的对比（这是跨进程的一致性检查，
+    不是同进程内的）。"""
     level, hist = task
     sim = _ensure_sim(level)
     _position(sim, level, hist)
@@ -169,12 +165,12 @@ def _worker_check_state(task: tuple) -> dict:
     }
 
 
-# --------------------------------------------------------------------------- parent side
+# --------------------------------------------------------------------------- 父进程侧
 def patch(ns: dict, workers: int, quiet: bool = False) -> "mp.pool.Pool":
-    """Extend upstream Sim with parallel option evaluation and return the pool.
+    """给上游 Sim 扩展出并行选项评估，并返回进程池。
 
-    Safe to call repeatedly (the probe builds several pools): upstream's own outcome() and step() are
-    remembered on the first call, later calls only rebuild the dispatcher around them.
+    可以反复调用（探针会建好几个池）：上游自己的 outcome() 和 step() 只在第一次调用时记下来，
+    后续调用只是围绕它们重建分发层。
     """
     Sim = ns["Sim"]
     options = list(ns["OPTIONS"])
@@ -183,14 +179,14 @@ def patch(ns: dict, workers: int, quiet: bool = False) -> "mp.pool.Pool":
         Sim._serial_step = Sim.step
         upstream_init = Sim.__init__
 
-        def __init__(self, level):  # noqa: N807 - patching upstream's class
+        def __init__(self, level):  # noqa: N807 - 这是给上游类打补丁
             upstream_init(self, level)
             self.level = level
-            self.real_hist = []  # the steps the harness really took, as opposed to simulated branches
+            self.real_hist = []  # harness 真正走过的步，用于和模拟分支区分
 
-        def step(self, a, record):  # noqa: N807 - patching upstream's method
+        def step(self, a, record):  # noqa: N807 - 这是给上游方法打补丁
             done = Sim._serial_step(self, a, record)
-            if record is not None:  # run() passes its frame list only for real steps
+            if record is not None:  # run() 只对真实步传它的帧列表
                 self.real_hist.append(a)
             return done
 
@@ -203,11 +199,12 @@ def patch(ns: dict, workers: int, quiet: bool = False) -> "mp.pool.Pool":
 
     batch: dict = {"key": None, "res": None, "t": 0.0, "n": 0}
 
-    def outcome(self, name):  # noqa: N807 - patching upstream's method
+    def outcome(self, name):  # noqa: N807 - 这是给上游方法打补丁
         info = dict(self.info)
+        # 批次键 = （完整真实输入历史, 各字段取值）。同一个状态下的 11 个选项共享一次派发。
         key = (tuple(self.real_hist), tuple(sorted(info.items())))
         if batch["key"] != key:
-            # One decision asks for all 11 options at the same state: dispatch them together.
+            # 一次决策会在同一状态下要全部 11 个选项：一起派出去。
             t0 = time.perf_counter()
             tasks = [(self.level, list(key[0]), info, n) for n in options]
             batch["res"] = dict(pool.map(_worker_outcome, tasks))

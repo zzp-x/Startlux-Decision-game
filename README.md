@@ -234,6 +234,23 @@ python run_local.py --mario --parallel 6     # 11 个选项并行，约 18 分�
 比官方 H200 慢约 100 倍**是算术不是配置**：官方 12.2 ms 处理 891 token = 73,000 t/s，
 这台机器实测 675 t/s，比值 108×。细节推导见 `local-run/README.md`。
 
+## 代码约定
+
+改这个仓库之前先看这三条，不然容易改出问题：
+
+1. **注释、文档字符串一律中文**；**运行时字符串一律英文**——打印输出、日志格式、API 字段名、
+   发给模型的提示词与选项文本、CLI 的 `--help`。这些是程序的对外表现，改它会变动行为，
+   也会让既有文档里引用的输出失效。
+2. **`.cmd` 保持纯 ASCII + CRLF**，一个中文字符都不要加。cmd.exe 按 OEM 代码页
+   （中文系统上是 GBK）解析批处理文件，UTF-8 中文会被解成乱码；多字节序列在
+   `if ... ( ... )` 块里还有已知的解析失败。所有面向用户的中文一律由 `run_local.py` 打印，
+   想看中文说明就 `run.cmd --help`。仓库里的 `.gitattributes` 用 `*.cmd -text` 钉死了行尾，
+   别删它——`core.autocrlf` 是每台机器各自的设置，靠它保不住 CRLF。
+3. **`Startlux-Decision/` 和 `mario/jev-mario-main/` 只读**。这两块是上游代码，必须与上游
+   逐字节一致（已核验）。要改行为就在外围包一层：马里奥那边是 `mario_launch.py` 的兼容垫片
+   与 `mario_par.py` 的外部打补丁，决策引擎那边是 `local-run/gguf-local/startlux_local.py`。
+   这两个目录也刻意不入发布仓库。
+
 更深入的实测数据、五个踩坑的完整记录、以及 GPU/CPU 两路互为对照的正确性说明：
 **`local-run/README.md`**。马里奥 harness 的接入细节与 Windows 依赖为什么装不上：
 **`mario/README.md`**。

@@ -1,4 +1,4 @@
-"""End-to-end check of the local GGUF decision engine: one request per question type, plus a wide Choice list."""
+"""本地 GGUF 决策引擎的端到端自检：每种问题类型各发一次请求，外加一次 30 选项的宽列表。"""
 import json
 import os
 import sys

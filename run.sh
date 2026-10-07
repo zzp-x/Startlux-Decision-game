@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# StartLux-Decision one-click launcher, for bash / git-bash.
-#   ./run.sh                    boot the stack, then run the demo call
-#   ./run.sh --mario            ... and play level 1-1 with jev-mario
+# StartLux-Decision 一键启动器，给 bash / git-bash 用。
+#   ./run.sh                    起服务栈，然后跑一次示例调用
+#   ./run.sh --mario            再顺便用 jev-mario 玩一遍 1-1
 #   ./run.sh --status | --stop | --restart | --selftest | --bench
-# Override the interpreter with STARTLUX_PY=... if needed.
+# 需要换解释器时用 STARTLUX_PY=... 覆盖。
 set -euo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PY="${STARTLUX_PY:-C:/Users/Libai/.workbuddy/binaries/python/versions/3.13.12/python.exe}"

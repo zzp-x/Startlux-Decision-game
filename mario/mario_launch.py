@@ -1,21 +1,20 @@
-"""Run the official 4esv/jev-mario harness unmodified, against the local StartLux-Decision server.
+"""原样运行官方 4esv/jev-mario harness，指向本地的 StartLux-Decision 服务。
 
     python mario_launch.py branch.py --bot jev --level 1-1 \
         --url http://127.0.0.1:8090/v1/systemone --label startlux           # 原样串行
     python mario_launch.py branch.py --bot jev --level 1-1 --parallel 6 \
         --url http://127.0.0.1:8090/v1/systemone --label startlux-par       # 并行评估 11 个选项
 
-Two things happen here, neither of which touches the harness:
+这里做两件事，都不碰 harness：
 
-1. One compatibility shim.  gym-super-mario-bros 9.x is built on gymnasium, which dropped the
-   `apply_api_compatibility` kwarg that the harness passes to make().  Dropping it is a no-op here,
-   because the env already speaks the current (obs, info) / 5-tuple step API that the harness expects --
-   verified: reset -> (obs, info), step -> (obs, rew, term, trunc, info), and nes-py _backup/_restore are
-   frame-exact.
-2. `--parallel N` fans the 11 options of each decision out over N processes instead of simulating them
-   one after another (see mario_par.py).  Without the flag the harness runs exactly as upstream wrote it.
+1. 一个兼容垫片。gym-super-mario-bros 9.x 建在 gymnasium 上，后者删掉了 harness 传给 make() 的
+   `apply_api_compatibility`。去掉它对这里是无副作用的：环境已经就是 harness 期待的现代 API
+   ——(obs, info) 返回、五元组 step——已实测：reset -> (obs, info)，step -> (obs, rew, term,
+   trunc, info)，且 nes-py 的 _backup/_restore 是逐帧精确的。
+2. `--parallel N` 把每次决策的 11 个选项扇出到 N 个进程上，而不是逐个模拟（见 mario_par.py）。
+   不带这个参数时，harness 完全按上游写法运行。
 
-Every file in jev-mario-main/ stays byte-identical to upstream.
+jev-mario-main/ 里的每个文件都与上游逐字节一致。
 """
 import sys
 from pathlib import Path
@@ -25,7 +24,7 @@ HARNESS = HERE / "jev-mario-main"
 
 
 def take_flag(argv: list[str], name: str) -> tuple:
-    """Pull `--name N` / `--name=N` out of argv. Returns (value_or_None, rest)."""
+    """从 argv 里摘出 `--name N` / `--name=N`。返回 (取到的值或 None, 剩下的参数)。"""
     rest, value, i = [], None, 0
     while i < len(argv):
         a = argv[i]
@@ -66,18 +65,17 @@ def main() -> int:
 
     local_url = os.environ.get("JEVMARIO_URL", "http://127.0.0.1:8090/v1/systemone")
 
-    # branch.py takes --url on the command line (leave its own logic alone, so a self-hosted run is
-    # still recorded as cost_usd = 0).  play.py and live.py hardcode play.JEV_URL and need the
-    # TYPESAFE_API_KEY env var, so point those at the local server here instead of editing the harness.
+    # branch.py 从命令行接收 --url（所以不动它自己的逻辑，自托管运行仍会被记成 cost_usd = 0）。
+    # play.py 和 live.py 把 play.JEV_URL 写死在代码里、并且需要 TYPESAFE_API_KEY 环境变量，
+    # 所以这里就地改指向本地服务，而不是去编辑 harness。
     if script in ("play.py", "live.py"):
         os.environ.setdefault("TYPESAFE_API_KEY", "local-self-hosted")
         import play as _play
 
         _play.JEV_URL = local_url
 
-    # Read-only progress probe: log every decision the moment it comes back from the local server.
-    # It wraps httpx.Client.post, so it works no matter which harness script runs, and it changes
-    # nothing about the harness.
+    # 只读的进度探针：每次决策刚本地服务返回就立刻打一行。
+    # 它包裹的是 httpx.Client.post，所以哪个 harness 脚本在跑都生效，且完全不影响 harness 的行为。
     import httpx as _httpx
 
     raw_post = _httpx.Client.post
@@ -94,7 +92,7 @@ def main() -> int:
                 print(f"[decision {prog['n']:02d}] +{el:6.0f}s  choice={a['choice']!r} "
                       f"p={a['probabilities'].get(a['choice'], 0):.2f}  "
                       f"wall={d.get('usage', {}).get('wall_ms')} ms", flush=True)
-        except Exception as exc:  # never interfere with the run
+        except Exception as exc:  # 探针出错也绝不干扰正式运行
             print("[probe]", repr(exc), flush=True)
         return r
 
@@ -117,6 +115,7 @@ def main() -> int:
     if workers:
         print("[launch] --parallel 只对 branch.py 生效，本次忽略", flush=True)
 
+    # 其余脚本按普通方式跑，等价于 python <script>
     runpy = __import__("runpy")
     runpy.run_path(str(src), run_name="__main__")
     return 0

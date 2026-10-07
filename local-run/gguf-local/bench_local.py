@@ -1,4 +1,4 @@
-"""Latency of the decision path for one realistic request, against any llama-server base URL.
+"""单个真实请求在决策链路上的延迟，可指向任意 llama-server 地址。
 
   python bench_local.py --llama http://127.0.0.1:8081 --label "GTX 1050 (Vulkan)"
   python bench_local.py --llama http://127.0.0.1:8082 --label "CPU only"
@@ -51,7 +51,7 @@ def main():
     if "error" in eng.health():
         print("server not reachable:", eng.health())
         return
-    eng.decide(STATE, QUESTIONS)                      # warm up
+    eng.decide(STATE, QUESTIONS)                      # 预热一次，不计时
     times = []
     for _ in range(a.repeats):
         t0 = time.perf_counter()

@@ -1,14 +1,14 @@
-"""A/B probe: serial vs parallel option evaluation from the same real game state.
+"""A/B 探针：从同一个真实游戏状态出发，比较串行与并行的选项评估。
 
-Replays the real choices out of the 0.8B run's decision log up to decision `--at`, then evaluates all
-11 options of that decision twice from the exact same state: once with upstream's serial
-Sim.outcome() (137.9 s/decision measured on this machine) and once with the parallel dispatcher.
+它从 0.8B 那盘录像的决策日志里重放出真实选择直到第 `--at` 次决策，然后从完全相同的状态把
+该次决策的 11 个选项评估两遍：一遍走上游的串行 Sim.outcome()（本机实测 137.9 s/次决策），
+一遍走并行分发器。
 
-Two things are checked, not assumed:
-  1. cross-process fidelity -- every worker replays the parent's input history and reports a hash of
-     its RAM and screen, which must equal the parent's;
-  2. result equivalence -- the 11 outcome dicts (dead/flag/dx/frames/alive_paths/best_gain/best_path/...)
-     must be identical between the two paths.
+检查两件事，都不是假设而是实测：
+  1. 跨进程保真度——每个 worker 重放父进程的输入历史后回报自己 RAM 与画面的哈希，
+     必须与父进程的相等；
+  2. 结果等价性——11 份 outcome 字典（dead/flag/dx/frames/alive_paths/best_gain/best_path/…）
+     在两条路径上必须完全相同。
 
     python probe_par.py --at 4 --workers 6,11,12
 """
@@ -25,6 +25,7 @@ RUNS = HERE / "jev-mario-main" / "runs"
 
 
 def fingerprint(core) -> dict:
+    """把模拟器状态压成两个哈希（RAM 与画面），用于跨进程比对。"""
     return {
         "ram": hashlib.blake2b(bytes(core.ram), digest_size=16).hexdigest(),
         "screen": hashlib.blake2b(core.screen.tobytes(), digest_size=16).hexdigest(),
@@ -45,18 +46,19 @@ def main() -> None:
 
     pool_sizes = [int(x) for x in a.workers.split(",") if x.strip()]
 
-    # patch before building the env: the dispatcher and the history recorder come from patch()
+    # 必须在建环境之前打补丁：分发器和历史记录器都来自 patch()
     holder = mario_par.patch(ns, 1, quiet=True)
     sim = Sim("1-1")
 
     log_path = sorted(RUNS.glob(a.log))[-1]
     log = [json.loads(line) for line in log_path.read_text().splitlines()]
+    # 按录像里的真实选择重放：每次先等落地，再执行当时选的动作（以及 ride 的续步）
     for entry in log[: a.at]:
         while play.airborne(sim.ram) and not sim.done:
-            sim.step(3, [])  # the empty list marks a real step for the history recorder
+            sim.step(3, [])  # 传空列表 = 标记为"真实步"，历史记录器据此区分模拟分支
         if entry["choice"].startswith("escape:"):
             raise SystemExit("该状态走了 escape 分支，本探针不覆盖（escape 仍是串行路径）")
-        real = []  # run() passes its frame list for real steps; the probe only needs the marking
+        real = []  # run() 对真实步传帧列表；探针只需要那个"标记"作用
         sim.execute(entry["choice"], horizon, real)
         real.clear()
         if entry.get("ride") and not sim.over():
@@ -71,7 +73,7 @@ def main() -> None:
     print(f"[state] 重放 {a.at} 次决策后：x={sim.x()}  done={sim.done}  flag={info.get('flag_get')}  "
           f"真实按键历史 {len(hist)} 帧  日志={log_path.name}", flush=True)
 
-    # ---------------------------------------------------------------- serial (upstream path)
+    # ---------------------------------------------------------------- 串行（上游路径）
     t0 = time.perf_counter()
     serial, per_option = {}, {}
     for n in options:
@@ -86,12 +88,13 @@ def main() -> None:
         print(f"           {t:6.1f}s  {n:34s} dead={int(o['dead'])} dx={o['dx']:+d} "
               f"alive_paths={o['alive_paths']}", flush=True)
 
-    # ---------------------------------------------------------------- parallel
+    # ---------------------------------------------------------------- 并行
     for w in pool_sizes:
         holder.terminate()
         holder.join()
         holder = mario_par.patch(ns, w, quiet=True)
 
+        # 让 w 个 worker 各自重放同一段历史，比对哈希
         checks = holder.map(mario_par._worker_check_state, [("1-1", hist)] * w)
         restore_ok = all(c["ram"] == mine["ram"] and c["screen"] == mine["screen"] for c in checks)
         pids = sorted({c["pid"] for c in checks})
