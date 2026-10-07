@@ -1,0 +1,13 @@
+# Windows 批处理文件必须保持 CRLF 行尾。
+#
+# 为什么：cmd.exe 在读 LF-only 的 .cmd 时，解析括号块 `if ... ( ... )` 有已知失败
+# （本仓库的 run.cmd / stop.cmd 各含 2 处这样的块）。而且 core.autocrlf 是每台机器
+# 各自的设置，靠它保不住行尾 —— 已实际踩过一次：提交时被规范化成了 LF。
+#
+# -text 表示 git 对该文件不做任何行尾转换，仓库里存的就是 CRLF，checkout 出来还是 CRLF，
+# 从 GitHub 直接下载 ZIP 或读 raw 也是 CRLF。
+*.cmd -text
+*.bat -text
+
+# 这份文件本身放在 publish-files/ 下，由 build-startlux-game-repo.py 覆盖进仓库。
+# 放在这里而不是仓库里，是因为重建脚本会清空工作副本 —— 放仓库里会被下一次重建抹掉。
