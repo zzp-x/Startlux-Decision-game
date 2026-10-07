@@ -1,0 +1,3 @@
+{"level": "1-1", "bot": "live-jev", "stamp": "20261006-154429", "best_x": 684, "flag": false, "frames": 642, "api_calls": 5, "input_tokens": 32317, "cost_usd": 0.00136, "latency_p50": 2.262, "gif": "1-1-live-jev-20261006-154429.gif"}
+{"level": "1-1", "bot": "branch-startlux-0.8b", "stamp": "20261006-163620", "best_x": 2370, "flag": false, "frames": 2857, "api_calls": 26, "input_tokens": 839531, "cost_usd": 0.0, "latency_p50": 2.699, "gif": "1-1-branch-startlux-0.8b-20261006-163620.gif"}
+{"level": "1-1", "bot": "branch-startlux-0.8b-par", "stamp": "20261006-172918", "best_x": 2370, "flag": false, "frames": 2857, "api_calls": 26, "input_tokens": 2156431, "cost_usd": 0.0, "latency_p50": 2.702, "gif": "1-1-branch-startlux-0.8b-par-20261006-172918.gif"}

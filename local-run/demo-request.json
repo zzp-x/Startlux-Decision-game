@@ -1,0 +1,47 @@
+{
+  "state": {
+    "ticket_id": "TCK-4471",
+    "customer_tier": "gold",
+    "message": "I was charged twice for the same order. Please refund the duplicate charge immediately.",
+    "order_id": "A-99120",
+    "amount": 49.99,
+    "currency": "USD",
+    "previous_refunds": 0,
+    "payment_method": "Visa **** 4242"
+  },
+  "questions": {
+    "urgency": {
+      "type": "choice",
+      "instructions": "How urgent is this ticket?",
+      "criteria": {
+        "low": "no deadline pressure, customer is only asking",
+        "normal": "customer expects an answer within a day",
+        "high": "customer is blocked or losing money right now",
+        "critical": "customer threatens chargeback or leaves immediately"
+      }
+    },
+    "refund_now": {
+      "type": "noul",
+      "instructions": "Should the duplicate charge be refunded without further review?",
+      "criteria": {
+        "true": "the evidence already proves the duplicate charge",
+        "false": "more checking is needed before refunding"
+      }
+    },
+    "sentiment": {
+      "type": "score",
+      "instructions": "Rate the customer's current sentiment.",
+      "criteria": ["furious", "upset", "neutral", "satisfied"]
+    },
+    "best_action": {
+      "type": "choice",
+      "instructions": "What should the support agent do first?",
+      "criteria": {
+        "refund": "issue the refund right away",
+        "verify": "check the billing records for a duplicate charge",
+        "ask": "ask the customer for more details",
+        "escalate": "hand the ticket to a billing specialist"
+      }
+    }
+  }
+}

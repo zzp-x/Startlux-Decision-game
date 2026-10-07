@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>StartLux-Decision 项目分析报告</title>
+<style>
+  :root{
+    --bg:#f6f7f9; --card:#ffffff; --ink:#1b1f24; --ink2:#4a5460; --ink3:#7b8794;
+    --line:#e3e7ec; --accent:#1f6feb; --accent-soft:#eaf1fe;
+    --warn:#b45309; --warn-bg:#fff7e6; --ok:#12734a; --ok-bg:#e9f7f0;
+    --bad:#b42318; --bad-bg:#fdeceb;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+    line-height:1.75;font-size:15px;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1040px;margin:0 auto;padding:40px 24px 80px}
+  header.top{background:linear-gradient(135deg,#132a4d 0%,#1f4a7d 55%,#1f6feb 100%);
+    color:#fff;border-radius:16px;padding:34px 34px 30px;box-shadow:0 10px 30px rgba(19,42,77,.18)}
+  header.top .kicker{font-size:12.5px;letter-spacing:.14em;text-transform:uppercase;opacity:.75;margin-bottom:10px}
+  header.top h1{margin:0 0 8px;font-size:29px;line-height:1.3;font-weight:650}
+  header.top p{margin:0;opacity:.9;font-size:14.5px;max-width:760px}
+  .meta{display:flex;flex-wrap:wrap;gap:8px;margin-top:20px}
+  .meta span{background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.2);
+    border-radius:999px;padding:4px 12px;font-size:12.5px}
+  h2{font-size:20px;margin:44px 0 14px;padding-left:12px;border-left:4px solid var(--accent);line-height:1.35}
+  h3{font-size:16px;margin:26px 0 8px;color:var(--ink)}
+  p{margin:10px 0}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:20px 22px;margin:14px 0;
+    box-shadow:0 1px 2px rgba(16,24,40,.04)}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:12px;margin:16px 0}
+  .stat{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+  .stat .n{font-size:22px;font-weight:650;letter-spacing:-.01em}
+  .stat .l{font-size:12.5px;color:var(--ink3);margin-top:2px}
+  table{width:100%;border-collapse:collapse;margin:14px 0;font-size:13.5px;background:var(--card);
+    border:1px solid var(--line);border-radius:10px;overflow:hidden}
+  th,td{padding:8px 11px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+  th{background:#f2f5f8;font-weight:600;font-size:12.5px;color:var(--ink2);white-space:nowrap}
+  tbody tr:last-child td{border-bottom:none}
+  tbody tr:hover{background:#fafbfc}
+  td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+  code{font-family:var(--mono);font-size:12.8px;background:#eef1f4;border-radius:5px;padding:1.5px 5px;color:#243040}
+  pre{background:#0f1a2b;color:#dbe6f5;border-radius:10px;padding:14px 16px;overflow:auto;
+    font-family:var(--mono);font-size:12.5px;line-height:1.62;margin:12px 0}
+  pre code{background:none;color:inherit;padding:0}
+  ul,ol{margin:10px 0;padding-left:22px}
+  li{margin:5px 0}
+  .tag{display:inline-block;font-size:11.5px;padding:1px 8px;border-radius:999px;border:1px solid var(--line);
+    background:#f4f6f8;color:var(--ink2);margin-right:5px}
+  .note{border-left:4px solid var(--accent);background:var(--accent-soft);padding:12px 16px;border-radius:0 10px 10px 0;margin:14px 0}
+  .warn{border-left:4px solid var(--warn);background:var(--warn-bg);padding:12px 16px;border-radius:0 10px 10px 0;margin:14px 0}
+  .ok{border-left:4px solid var(--ok);background:var(--ok-bg);padding:12px 16px;border-radius:0 10px 10px 0;margin:14px 0}
+  .muted{color:var(--ink3);font-size:13px}
+  .bar{height:9px;background:#eef1f4;border-radius:6px;overflow:hidden;min-width:70px}
+  .bar>i{display:block;height:100%;background:linear-gradient(90deg,#1f6feb,#4f9cf9)}
+  footer{margin-top:50px;padding-top:18px;border-top:1px solid var(--line);color:var(--ink3);font-size:12.5px}
+  .two{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media(max-width:760px){.two{grid-template-columns:1fr}.wrap{padding:22px 14px 60px}header.top{padding:24px 20px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <div class="kicker">GitHub 项目分析 · 下载 + 代码审查</div>
+  <h1>StartLux-Decision</h1>
+  <p>一套「类型化决策模型」家族:0.8B–27B 稠密模型 + 35B-A3B MoE,支持文本 / JSON / 图像输入、256K 上下文。
+     每个问题直接返回各选项的<strong>概率</strong>——不生成任何 token,答案从选项字母的 logits 里"读"出来。</p>
+  <div class="meta">
+    <span>StartLuxLabs/StartLux-Decision</span>
+    <span>Public · Apache-2.0(代码)</span>
+    <span>CC BY-NC 4.0(权重)</span>
+    <span>主流语言:Python</span>
+    <span>最新提交:2026-10-04</span>
+  </div>
+</header>
+
+<h2>一句话结论</h2>
+<div class="card">
+  <p style="margin-top:0">这是一个<strong>把大模型当"分类器"用</strong>的研究型工程项目:不做自回归生成,而是给每个问题渲染成一份「Evidence / Question / Options」提示词,把选项编成 A、B、C…,
+     跑<strong>一次前向</strong>,再在对应字母 token 的 logits 上归一化得到概率分布。整套工程优化(线性注意力快速核、CUDA Graph、共享前缀分块预填充、批处理)都是围绕"单次前向、毫秒级、可当置信度用"这个目标展开的。</p>
+  <p style="margin-bottom:0">仓库本身<strong>不含权重</strong>,只提供推理代码 + 评测脚本 + 全部原始结果;权重托管在 Hugging Face / ModelScope。</p>
+</div>
+
+<div class="grid">
+  <div class="stat"><div class="n">6 + 3</div><div class="l">模型规模数量(0.8B/2B/4B/9B/27B + 35B-A3B,及 3 档 GGUF 量化)</div></div>
+  <div class="stat"><div class="n">1,616</div><div class="l">核心包 <code>startlux_decision/</code> 的 Python 行数(8 个文件)</div></div>
+  <div class="stat"><div class="n">262,144</div><div class="l">原生上下文长度(256K),各尺寸一致</div></div>
+  <div class="stat"><div class="n">12.2–102.3 ms</div><div class="l">H200 单请求延迟(0.8B → 27B,三字段同批一次前向)</div></div>
+  <div class="stat"><div class="n">63.88</div><div class="l">27B 在 Decision Index 0.2.1 的分数(公开榜最高 Jev 1.13 = 57.91)</div></div>
+  <div class="stat"><div class="n">205</div><div class="l">GitHub Stars(抓取时)</div></div>
+</div>
+
+<h2>1. 这个项目解决什么问题</h2>
+<div class="card">
+  <p style="margin-top:0">传统做法让 LLM 生成答案文本,再解析——慢、且无法直接得到概率。StartLux-Decision 把「决策」抽象成三种<strong>类型化问题</strong>:</p>
+  <table>
+    <thead><tr><th>类型</th><th>含义</th><th>criteria</th><th>返回</th></tr></thead>
+    <tbody>
+      <tr><td><code>choice</code></td><td>多选一</td><td><code>{选项: 说明或 null}</code>,最多 26 个</td><td><code>choice</code> + <code>confidence</code> + 全选项 <code>probabilities</code></td></tr>
+      <tr><td><code>noul</code></td><td>是 / 否</td><td>可选 <code>{"true":…,"false":…}</code></td><td><code>noul</code> = "是"的概率(无 confidence,等价量是 |2p−1|)</td></tr>
+      <tr><td><code>score</code></td><td>等级评分</td><td>按从低到高排列的等级列表(2–10 级)</td><td><code>score</code>(概率加权的等级均值)+ <code>confidence</code> + <code>legend</code></td></tr>
+    </tbody>
+  </table>
+  <p>典型场景:客服工单路由、严重程度打分、是否加急、意图分类、工具选择、是否该调用某 API 等——即"需要带置信度的一次性判断"。</p>
+</div>
+
+<h2>2. 核心机制:为什么是"读字母"而不是"生成"</h2>
+<div class="card">
+  <p style="margin-top:0">这是整个项目最值得关注的设计。<code>startlux_decision/jevfmt.py</code>(渲染层,<code>VERSION = "jev_render_v3"</code>)把一个问题渲染成固定模板:</p>
+  <pre><code>system : "Apply the criterion to the evidence. Choose exactly one listed option.
+          Answer with its letter only."
+user   : Evidence:
+         &lt;state:字符串 / 自动注解索引的 JSON&gt;
+
+         Question: &lt;instructions&gt;
+         Options:
+         A) billing: Payments, refunds and invoices
+         B) shipping: Delivery and tracking
+         C) technical: App, login and account problems
+         …(外加 thinking-off 前缀 &lt;think&gt;\n\n&lt;/think&gt;\n\n)</code></pre>
+  <p>然后:<strong>只取最后一个位置在 26 个字母 token 上的 logits</strong>,除以该问题类型的温度,在已列选项上归一化 → 概率分布。全程 <code>output_tokens = 0</code>。</p>
+  <svg viewBox="0 0 680 250" width="100%" style="margin:14px 0" role="img" aria-label="推理流程示意">
+    <defs>
+      <marker id="ar" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto">
+        <path d="M0,0 L7,3 L0,6 z" fill="#7b8794"/>
+      </marker>
+    </defs>
+    <rect x="8" y="30" width="120" height="86" rx="9" fill="#eaf1fe" stroke="#1f6feb"/>
+    <text x="68" y="58" font-size="11.5" fill="#1b1f24" text-anchor="middle" font-weight="600">请求 request</text>
+    <text x="68" y="76" font-size="10" fill="#4a5460" text-anchor="middle">state + questions</text>
+    <text x="68" y="91" font-size="10" fill="#4a5460" text-anchor="middle">(文本/JSON/图像)</text>
+    <text x="68" y="106" font-size="10" fill="#4a5460" text-anchor="middle">最多 256K tokens</text>
+    <line x1="130" y1="73" x2="158" y2="73" stroke="#7b8794" stroke-width="1.4" marker-end="url(#ar)"/>
+
+    <rect x="162" y="30" width="132" height="86" rx="9" fill="#ffffff" stroke="#c9d3de"/>
+    <text x="228" y="55" font-size="11.5" fill="#1b1f24" text-anchor="middle" font-weight="600">逐问题渲染</text>
+    <text x="228" y="72" font-size="10" fill="#4a5460" text-anchor="middle">Evidence/Question/Options</text>
+    <text x="228" y="87" font-size="10" fill="#4a5460" text-anchor="middle">选项编成 A、B、C…</text>
+    <text x="228" y="102" font-size="10" fill="#4a5460" text-anchor="middle">每问题各成一行</text>
+    <line x1="296" y1="73" x2="324" y2="73" stroke="#7b8794" stroke-width="1.4" marker-end="url(#ar)"/>
+
+    <rect x="328" y="30" width="150" height="86" rx="9" fill="#ffffff" stroke="#c9d3de"/>
+    <text x="403" y="55" font-size="11.5" fill="#1b1f24" text-anchor="middle" font-weight="600">一次前向 forward</text>
+    <text x="403" y="72" font-size="10" fill="#4a5460" text-anchor="middle">CUDA Graph / 批处理</text>
+    <text x="403" y="87" font-size="10" fill="#4a5460" text-anchor="middle">共享前缀只跑一次</text>
+    <text x="403" y="102" font-size="10" fill="#4a5460" text-anchor="middle">bf16,MoE 分组矩阵乘</text>
+    <line x1="480" y1="73" x2="508" y2="73" stroke="#7b8794" stroke-width="1.4" marker-end="url(#ar)"/>
+
+    <rect x="512" y="30" width="160" height="86" rx="9" fill="#e9f7f0" stroke="#12734a"/>
+    <text x="592" y="55" font-size="11.5" fill="#1b1f24" text-anchor="middle" font-weight="600">字母读出 readout</text>
+    <text x="592" y="72" font-size="10" fill="#4a5460" text-anchor="middle">取末位 26 个字母 logits</text>
+    <text x="592" y="87" font-size="10" fill="#4a5460" text-anchor="middle">÷ 类型温度 → softmax</text>
+    <text x="592" y="102" font-size="10" fill="#4a5460" text-anchor="middle">输出概率分布</text>
+
+    <rect x="8" y="146" width="664" height="82" rx="9" fill="#f2f5f8" stroke="#e3e7ec"/>
+    <text x="22" y="170" font-size="11" fill="#4a5460">关键约束(决定了很多工程细节):</text>
+    <text x="22" y="189" font-size="10.5" fill="#4a5460">1) 字母必须是"单个独立 token",且 26 个字母 id 互不相同 —— 启动时用 tokenizer 强校验</text>
+    <text x="22" y="206" font-size="10.5" fill="#4a5460">2) 温度只改变概率锐度,永远不改变谁是 argmax(所以可以事后校准,不影响答案)</text>
+    <text x="22" y="223" font-size="10.5" fill="#4a5460">3) 选项 &gt; 26 个时走"宽选项"多轮:分组(≤25)→ 各组前 3 进决赛 → 落选者按组内得分保留残余概率</text>
+  </svg>
+  <div class="note"><strong>工程含义:</strong>因为不需要生成,延迟只由"输入长度"决定(与输出长度无关),且天然拿到可解释的概率——可以直接当置信度用,也可以设置阈值做兜底/人工复核。同时它使模型对 prompt 格式极度敏感:换一套渲染方式就换一套结果,所以仓库把渲染器版本号(<code>jev_render_v3</code>)写进了代码。</div>
+</div>
+
+<h2>3. 仓库结构与代码规模</h2>
+<div class="card">
+  <table>
+    <thead><tr><th>目录</th><th>作用</th><th class="num">文件数</th><th class="num">行数</th></tr></thead>
+    <tbody>
+      <tr><td><code>startlux_decision/</code></td><td>推理核心:渲染、字母读出、CUDA Graph、长输入、图像、HTTP 服务(GGUF/MLX 后端)、内核自检</td><td class="num">8</td><td class="num">1,616</td></tr>
+      <tr><td><code>demos/</code></td><td>计算机使用(Playwright + 两个 mock 站点)、国际象棋对战工具</td><td class="num">21</td><td class="num">893</td></tr>
+      <tr><td><code>eval/</code></td><td>Intern-Decision 七套件 + JevBench 公开层、Typed Decisions、Decision Index、延迟</td><td class="num">9</td><td class="num">816</td></tr>
+      <tr><td><code>finetune/</code></td><td>LoRA 微调(peft)+ 分类型温度校准</td><td class="num">2</td><td class="num">305</td></tr>
+      <tr><td><code>docs/</code></td><td>inference / evaluation / finetuning / results 四篇长文档</td><td class="num">4</td><td class="num">907</td></tr>
+      <tr><td><code>results/</code></td><td>全部原始结果:棋局 PGN/JSON、NPC 判定、计算机使用日志、汇总 CSV/JSON</td><td class="num">287</td><td class="num">—</td></tr>
+      <tr><td><code>media/</code></td><td>图表与演示视频/动图(约 65 MB,本地未全量拉取)</td><td class="num">26</td><td class="num">—</td></tr>
+    </tbody>
+  </table>
+  <p class="muted">核心包 8 个文件:<code>model.py</code>(~724 行,引擎主体)、<code>jevfmt.py</code>(渲染)、<code>server.py</code>(HTTP)、<code>gguf_server.py</code>(llama.cpp 前置)、<code>mlx_model.py</code> / <code>mlx_int8.py</code>(Apple Silicon)、<code>check.py</code>(内核自检)、<code>__init__.py</code>。</p>
+  <div class="warn"><strong>注意:</strong>仓库里没有任何权重文件。运行必须先从 Hugging Face(<code>startlux-models/StartLux-Decision-4B</code> 等)或 ModelScope(<code>StartLuxAI/</code>)下载对应目录,目录内自带 <code>config.json</code>、<code>decision_config.json</code>、tokenizer 与图像处理器配置。单模型体积从 1.8 GB(0.8B)到 55.6 GB(27B bf16)。</div>
+</div>
+
+<h2>4. 推理引擎关键实现(<code>model.py</code> 精读)</h2>
+<div class="card">
+  <h3>4.1 三类执行路径</h3>
+  <table>
+    <thead><tr><th>路径</th><th>触发条件</th><th>做法</th></tr></thead>
+    <tbody>
+      <tr><td>CUDA Graph</td><td>CUDA + <code>graphs=True</code>;1 个问题(长度 128…4096)或 2–4 个问题(每个 ≤1024 token)</td><td>启动时录制约 40 张图,共用一个显存池;单问题按长度、多问题按 (行数, 长度) 索引。短请求右填充到最近长度后整批重放,消除逐层 kernel 启动开销</td></tr>
+      <tr><td>Eager 批处理</td><td>其他请求</td><td>按长度排序,填充到固定阶梯 <code>PAD_LENGTHS</code>(128…65536),一次前向多行</td></tr>
+      <tr><td>共享前缀 + 分块</td><td>同一请求内多个问题的共同前缀 &gt; 4096 token</td><td>共享段按 32,768 token 分块只跑一次,保留各层 KV / 线性注意力 conv+recurrent 状态;各问题只在尾部跑,通过 log-sum-exp 合并"共享段注意力"与"自身因果注意力"</td></tr>
+    </tbody>
+  </table>
+  <p class="muted">自研 causal 注意力以 <code>AttentionInterface.register("startlux_causal", …)</code> 注入 transformers:因为输入是右填充、逐层因果,所以不需要 attention mask 张量;融合核优先 cuDNN,退化到 flash。</p>
+
+  <h3>4.2 值得注意的工程细节</h3>
+  <ul>
+    <li><strong>固定填充阶梯而不是精确填充</strong>:线性注意力内核按序列长度编译(每个约 1 秒),精确填充会导致几乎每个 batch 都重编译。</li>
+    <li><strong>MoE 走 grouped GEMM</strong>:35B-A3B 加载时设 <code>experts_implementation="grouped_mm"</code>,每个投影一次 kernel 覆盖所有专家,且不与 host 同步——这样专家层也能被 CUDA Graph 录制。</li>
+    <li><strong>启动自检</strong>:服务启动时同一请求分别跑 graph 路径与 eager 路径,打印最大概率差(六个模型均 0.0);超过 0.02 就丢弃 graphs。</li>
+    <li><strong>硬性内核依赖</strong>:CUDA 上若 <code>flash-linear-attention</code> / <code>causal-conv1d</code> 不可用,<code>StartLuxDecision(...)</code> 直接报错拒绝启动(设 <code>STARTLUX_ALLOW_SLOW=1</code> 可强行跑,但会慢 10 倍以上)。<code>check.py</code> 就是给部署前用的。</li>
+    <li><strong>宽选项降级策略</strong>:<code>wide_choice = {group:25, keep:3, residual:1e-3}</code>;>26 个选项时分近等组 → 各组前 3 进决赛 → 其余选项保留 0.1% 残差概率(保证所有选项概率非零)。</li>
+    <li><strong>置信度严格按 TypeSafe 定义</strong>:choice 为 <code>(p_max − 1/n)/(1 − 1/n)</code>;score 为"概率加权等级距离"相对均匀分布的归一化、下限 0。作者明确说明 2026-10-03 前返回的是 top 概率,现已更正。</li>
+    <li><strong>两条吞吐路径</strong>:<code>decide()</code> 是延迟路径,<code>decide_batch()</code> 是吞吐路径(跨请求的 12,351 个问题按长度排序打包)。实测 2,678 请求:批处理 140 s vs 逐条 337 s,选项一致率 99.94%(差异来自不同 batch 形状下的 bf16 舍入)。</li>
+    <li><strong>图像</strong>:checkpoint 自带视觉塔;字符串 state 里用 <code>&lt;image&gt;</code> 标记插入位置;每 32×32 像素 1 token,单图上限 1,048,576 像素(1024×1024 ≈ 1024 token);视觉塔每请求只跑一次,图像请求走 eager 路径(不进 graph)。MLX / GGUF 后端<strong>只支持文本</strong>。</li>
+  </ul>
+</div>
+
+<h2>5. 服务与接口</h2>
+<div class="card">
+  <p style="margin-top:0">两个服务都用标准库 <code>http.server</code> 实现,对外统一讲 <strong>TypeSafe <code>/v1/systemone</code></strong> 协议(所以为 Jev 写的客户端可以无缝切换):</p>
+  <pre><code>POST /v1/systemone
+{"state": {...} | "文本",
+ "questions": {"team": {"type":"choice","instructions":"…","criteria":{…}},
+               "urgent": {"type":"noul","instructions":"…"},
+               "severity":{"type":"score","instructions":"…","criteria":["…","…"]}},
+ "images": ["data:image/jpeg;base64,…"]}          # 可选,torch 后端
+
+→ {"answers": {...}, "usage": {"input_tokens":290,"output_tokens":0},
+   "model": "…", "latency_ms": 15.7}             # 每个响应带 x-typesafe-request-id 头
+
+GET /health      → {status, model, backend, fast_kernels, cuda_graphs, images, max_length}
+GET /v1/models   → {models:[{name, description, release_date}]}</code></pre>
+  <ul>
+    <li><strong>错误码约定</strong>:400 请求体格式错误;422 模型无法回答(未知类型、超长 prompt、score &gt; 10 级)。</li>
+    <li><strong>并发模型</strong>:每张 GPU 一次只服务一个请求(<code>threading.Lock</code>),要吞吐就起多个 server + 前面挂负载均衡。</li>
+    <li><code>gguf_server.py</code> 复用同一个 <code>StartLuxDecision</code> 类,只替换前向:向 llama-server 要<strong>全词表 log-probabilities</strong>,再按同样温度归一化(与在 logits 上做等价)。自带线程池(<code>--workers 16</code>)、1024 的请求队列。要求 llama.cpp build ≥ b10454。</li>
+  </ul>
+</div>
+
+<h2>6. 后端矩阵:一套代码,四种跑法</h2>
+<div class="card">
+  <table>
+    <thead><tr><th>后端</th><th>位置</th><th>适用</th><th>要点</th></tr></thead>
+    <tbody>
+      <tr><td><strong>PyTorch / CUDA</strong></td><td><code>model.py</code></td><td>Linux + NVIDIA</td><td>主力路径;必需 flash-linear-attention + causal-conv1d;支持图像、CUDA Graph、256K、FP8(torchao)</td></tr>
+      <tr><td><strong>MLX</strong></td><td><code>mlx_model.py</code></td><td>Apple Silicon(Mac)</td><td>只替换前向,用 mlx-lm 的 Metal 内核;<code>--int8</code> 在 M5+ 用神经加速器做 int8×int8(启动时算 SmoothQuant 尺度);前缀缓存复用;仅文本</td></tr>
+      <tr><td><strong>GGUF / llama.cpp</strong></td><td><code>gguf_server.py</code></td><td>通用部署 / 低显存</td><td>BF16 / Q8_0 / Q4_K_M 三档;BF16 与 Q8_0 与原始权重答案一致率 99–100%,Q4_K_M 从 4B 起保持 96.5–98.3%,0.8B/2B 建议用 Q8_0;35B-A3B 暂无 GGUF</td></tr>
+      <tr><td><strong>FP8</strong></td><td><code>model.py</code>(torchao)</td><td>省显存</td><td>27B 量化后约 27.5 GiB;但实测比 bf16 <em>慢约 2.7×</em>(短输入下在线量化激活得不偿失),且必须单问题跑、不能带填充(全零填充行的零 scale 会产出 NaN 并经注意力扩散)</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h2>7. 模型族与性能数据</h2>
+<div class="card">
+  <p style="margin-top:0">延迟为单张 H200 上"一个 choice + 一个 yes/no + 一个 score"(三问题一次前向)的端到端 HTTP 均值:</p>
+  <table>
+    <thead><tr><th>模型</th><th>类型</th><th class="num">3 字段延迟</th><th class="num">单 yes/no</th><th class="num">JevBench 公开(231)</th><th class="num">DI 0.2.1</th><th class="num">权重体积</th></tr></thead>
+    <tbody>
+      <tr><td>StartLux-Decision-0.8B</td><td>稠密</td><td class="num">12.2 ms</td><td class="num">8.3 ms</td><td class="num">179</td><td class="num">38.86</td><td class="num">1.8 GB</td></tr>
+      <tr><td>StartLux-Decision-2B</td><td>稠密</td><td class="num">15.5 ms</td><td class="num">9.6 ms</td><td class="num">196</td><td class="num">44.19</td><td class="num">4.6 GB</td></tr>
+      <tr><td>StartLux-Decision-4B</td><td>稠密</td><td class="num">26.0 ms</td><td class="num">14.7 ms</td><td class="num">204</td><td class="num">52.75</td><td class="num">9.3 GB</td></tr>
+      <tr><td>StartLux-Decision-9B</td><td>稠密</td><td class="num">35.7 ms</td><td class="num">17.6 ms</td><td class="num">201</td><td class="num">58.63</td><td class="num">19.4 GB</td></tr>
+      <tr><td>StartLux-Decision-27B</td><td>稠密</td><td class="num">102.3 ms</td><td class="num">50.7 ms</td><td class="num">208</td><td class="num"><strong>63.88</strong></td><td class="num">55.6 GB</td></tr>
+      <tr><td>StartLux-Decision-35B-A3B</td><td>MoE(激活≈3B)</td><td class="num"><strong>52.5 ms</strong></td><td class="num">36.4 ms</td><td class="num"><strong>210</strong></td><td class="num">61.55</td><td class="num">~71 GiB 峰值</td></tr>
+      <tr class="muted"><td>对照:Intern-Decision-4B</td><td>稠密</td><td class="num">44.2 ms¹</td><td class="num">—</td><td class="num">201</td><td class="num">37.81</td><td class="num">—</td></tr>
+      <tr class="muted"><td>对照:Jev 1.13</td><td>—</td><td class="num">64.0 ms²</td><td class="num">63.5 ms²</td><td class="num">199</td><td class="num">57.91</td><td class="num">—</td></tr>
+    </tbody>
+  </table>
+  <p class="muted">¹ Intern-Decision 自测(RTX 4090);² TypeSafe 网关上报的服务端时间,同机不可直接对比,作者已标注为"量级参考"。JevBench 公开 = Intern-Decision bundle 中 231 道公开题的答对数,<strong>不等于官方 JevBench 分数</strong>(官方还含密封层、速度与成本,只有维护方能量)。</p>
+
+  <h3>校准(概率质量)与 Typed Decisions</h3>
+  <table>
+    <thead><tr><th>模型</th><th class="num">JevBench hard Brier↓</th><th class="num">ECE↓</th><th class="num">Typed 准确率</th><th class="num">Typed KL↓</th></tr></thead>
+    <tbody>
+      <tr><td>0.8B</td><td class="num">0.524</td><td class="num">0.124</td><td class="num">0.758</td><td class="num">0.148</td></tr>
+      <tr><td>4B</td><td class="num">0.375</td><td class="num">0.104</td><td class="num">0.799</td><td class="num">0.080</td></tr>
+      <tr><td>9B</td><td class="num">0.355</td><td class="num">0.056</td><td class="num">0.815</td><td class="num">0.080</td></tr>
+      <tr><td>27B</td><td class="num"><strong>0.265</strong></td><td class="num">0.054</td><td class="num">0.802</td><td class="num">0.079</td></tr>
+      <tr><td>35B-A3B</td><td class="num">0.280</td><td class="num"><strong>0.039</strong></td><td class="num">0.813</td><td class="num"><strong>0.075</strong></td></tr>
+      <tr class="muted"><td>Jev 1.13</td><td class="num">0.358</td><td class="num">0.095</td><td class="num">0.727</td><td class="num">1.442</td></tr>
+    </tbody>
+  </table>
+  <p class="muted">Brier / ECE 越低越好。可以看出随规模增大,概率越来越"可信"而不只是越来越准——这正是把它们当置信度用的前提。</p>
+</div>
+
+<h2>8. 评测体系</h2>
+<div class="card">
+  <ul style="margin-top:0">
+    <li><code>eval/fetch_benchmarks.sh</code>:按<strong>固定 commit</strong> 拉取基准数据(Intern-Decision @2f81580、jevbench @7ce310c7、Typed Decisions @f7a2487e),保证分数可比。Decision Index 套件不可再分发,需用其官方 kit 自行构建。</li>
+    <li><code>eval/suites.py</code>:七套件 + 校准 pilot,共 10,751 行 / 12,351 个决策;评分直接复用上游 jevbench 的 <code>score_task / brier_score / ece_top_label</code>,并在输出里并列 Intern-Decision README 的数字做对照。支持 <code>--shard i --shards n</code> 多卡分片。</li>
+    <li><code>eval/typed_decisions.py</code>:400 个案例 × 5 问,对比软标签报 KL / TV / Brier,并明确说明"我们的 Uniform 基线复现了数据集卡片,所以这三项可比,ECE 不可比"。</li>
+    <li><code>eval/di/</code>:Decision Index 引擎适配 + 多卡批处理 runner + 分片合并,并给出耗时基准(4B 在 5×H200 上约 25 分钟)。</li>
+    <li><code>eval/latency.py</code>:20 次预热 + N 次计时,报 mean / P50 / P95 与 token 数。</li>
+    <li><code>results/</code>:287 个原始文件——棋局对战的 PGN 与逐手 JSON、NPC 判定逐句概率、计算机使用逐步日志、汇总 CSV/JSON。<strong>可复现性做得比多数同类发布充分。</strong></li>
+  </ul>
+</div>
+
+<h2>9. 微调与校准</h2>
+<div class="card">
+  <p style="margin-top:0"><code>finetune/finetune_lora.py</code>:每条数据 = 一个请求 + <code>targets</code>(choice 用 criteria 键;noul 用 "true"/"false";score 用 "0"…"n-1")。多人标注可传投票份额作为软标签分布。损失是"目标分布"与"选项字母 softmax"之间的交叉熵——<strong>与线上服务时的读出方式完全一致</strong>,训练/推理无落差。默认 rank 16 / alpha 32 / dropout 0.05 / lr 1e-4 余弦退火 / 2 epochs;只训 LM 线性层的 LoRA,结束后合并进 <code>runs/mine/merged</code> 作为可直接服务的目录。</p>
+  <p><code>finetune/calibrate.py</code>:按问题类型各拟合一个温度(最小化 dev 集 NLL),把结果写回 <code>decision_config.json</code>,并打印 ECE / NLL 前后对比。作者提示了两个坑:dev 集太简单会把温度顶到下界 0.2 导致概率过锐;跨数据源拟合的温度可能过度校正。</p>
+  <p class="muted">实测参考:4B 在 6,000 条合成工单问题上约 3 分钟跑完约 1 个 epoch(含内核编译);27B 的 bf16 权重就要 ~54 GB,需 80 GB 卡。</p>
+</div>
+
+<h2>10. 部署门槛与运行注意</h2>
+<div class="card">
+  <table>
+    <thead><tr><th>项</th><th>要求 / 建议</th></tr></thead>
+    <tbody>
+      <tr><td>Python 依赖</td><td><code>torch&gt;=2.8</code>、<code>transformers&gt;=5.8</code>、<code>huggingface_hub</code>、<code>safetensors</code>、<code>pillow</code>、<code>torchvision</code>、<code>peft&gt;=0.20</code>、<code>pyarrow&gt;=15</code></td></tr>
+      <tr><td>CUDA 必需</td><td><code>flash-linear-attention&gt;=0.5.2</code>、<code>causal-conv1d&gt;=1.7</code>(requirements 里限定 <code>sys_platform == "linux"</code>);缺失时 transformers 会<strong>静默</strong>退化到 >10× 慢的普通 torch 路径,或按代码设定直接拒绝启动</td></tr>
+      <tr><td>Apple Silicon</td><td>自动改装 <code>mlx-lm&gt;=0.31.3</code>(条件:<code>darwin</code> + <code>arm64</code>),不需要上述两个 CUDA 内核</td></tr>
+      <tr><td>显存</td><td>0.8B–4B 单卡可跑;9B / 27B 建议 80 GB(27B bf16 权重 55.6 GB);35B-A3B 峰值约 71 GiB 单卡 80 GB 可容纳;256K 上下文下 27B/35B-A3B 需占用 80 GB 的绝大部分</td></tr>
+      <tr><td>许可</td><td>代码 Apache-2.0;<strong>权重 CC BY-NC 4.0,仅限研究与非商业用途</strong>,商用需单独授权(<code>contact@startlux.com</code>)</td></tr>
+      <tr><td>可复现性依赖</td><td>Decision Index 套件不可再分发;ToolACE test 取自公开训练集(无留出测试集);HLE 需在 HF 上接受条款</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h2>11. 客观评价:亮点、疑点与风险</h2>
+<div class="two">
+  <div class="card">
+    <h3 style="margin-top:0;color:var(--ok)">值得肯定的</h3>
+    <ul>
+      <li><strong>设计思路清晰且少见</strong>:"不生成、只读字母"把决策任务从生成式拉回判别式,延迟与输出长度解耦,概率天然可用。</li>
+      <li><strong>工程完成度高</strong>:CUDA Graph、共享前缀分块、融合注意力 LSE 合并、MoE grouped GEMM、固定填充阶梯——每一处都能说出对应的实际瓶颈,不是堆砌。</li>
+      <li><strong>多后端覆盖完整</strong>:CUDA / MLX / GGUF / FP8 四条路,同一套渲染与读出逻辑,便于横向比对。</li>
+      <li><strong>数据公开透明</strong>:287 个原始结果文件、逐手棋谱、逐步日志;评测脚本复用上游评分器并在输出中并列他方数字。</li>
+      <li><strong>主动披露不利信息</strong>:明确说明 ToolACE 无留出集、14 个基准的训练 split 进了训练数据(标 †)、与 Jev 的探索性对局因对方 API key 为空而作废不计、DI 成绩未提交公开榜。</li>
+      <li><strong>量化损失做了实测</strong>:GGUF BF16/Q8_0/Q4_K_M 三档与原权重逐题比对(97–100%),而不是只报体积。</li>
+    </ul>
+  </div>
+  <div class="card">
+    <h3 style="margin-top:0;color:var(--warn)">需要打问号 / 注意的</h3>
+    <ul>
+      <li><strong>结果全部自报</strong>:所有数字由作者自测,Decision Index 未上公开榜,官方 JevBench 分数"不引用";对照系统数值取自公开榜单而非同条件复跑。</li>
+      <li><strong>数据污染披露但不消除</strong>:38 个 DI 基准里 14 个的训练 split 在训练数据中(声称已剔除测试项)——这类"声称已过滤"无法被外部独立验证。</li>
+      <li><strong>基准设定不利于己的部分也存在</strong>:在 GPQA Diamond、MMLU-Pro、BBH、HLE 等知识型基准上<strong>明显低于 Jev 1.13</strong>(如 MMLU-Pro 66.0 vs 80.5、BBH 71.3 vs 89.7)。项目强在"语言理解 / 检索分类 / 工具调用 / 人类品味",知识推理是短板。</li>
+      <li><strong>格式强耦合</strong>:答案完全依赖渲染模板与字母 token 的切分方式;换 tokenizer 或改模板即需重训/重验,迁移成本高。</li>
+      <li><strong>极端依赖专用 CUDA 内核</strong>:两个内核缺一不可,且 <code>causal-conv1d</code> 常需从源码编译;这在生产环境是个实打实的运维负担。</li>
+      <li><strong>商用受限</strong>:权重 CC BY-NC 4.0,直接排除商业落地(需另行谈授权)。</li>
+      <li><strong>35B-A3B 覆盖不全</strong>:无 GGUF,量化与边缘部署路径缺失。</li>
+      <li><strong>游戏类结果样本小</strong>:作者自己也说"这些任务容易饱和,只当演示、不当基准看"。</li>
+    </ul>
+  </div>
+</div>
+
+<h2>12. 本次下载情况</h2>
+<div class="card">
+  <table>
+    <thead><tr><th>项</th><th>结果</th></tr></thead>
+    <tbody>
+      <tr><td>目标仓库</td><td><code>https://github.com/StartLuxLabs/StartLux-Decision</code>(公开,默认分支 <code>main</code>)</td></tr>
+      <tr><td>下载方式</td><td><code>git clone</code> 在本机网络环境下失败(<code>OpenSSL SSL_read: SSL_ERROR_SYSCALL</code>,代理返回 502);改用 GitHub API 取文件树 + <code>raw.githubusercontent.com</code> 逐文件下载,并对失败文件自动重试</td></tr>
+      <tr><td>结果</td><td><strong>335 / 335 个文本与代码文件全部成功</strong>(约 4.9 MB);<code>media/</code> 下 26 个图片与视频(约 65 MB)按需跳过</td></tr>
+      <tr><td>本地路径</td><td><code>C:\Users\Libai\WorkBuddy\2026-10-05-20-55-03\Startlux-Decision\</code></td></tr>
+      <tr><td>未包含</td><td>模型权重(需从 Hugging Face / ModelScope 单独下载)、<code>media/</code> 媒体文件</td></tr>
+    </tbody>
+  </table>
+  <div class="ok"><strong>快速上手(拿到权重后):</strong>
+    <pre style="margin-bottom:0"><code>hf download startlux-models/StartLux-Decision-4B --local-dir StartLux-Decision-4B
+pip install -r requirements.txt
+python -m startlux_decision.check StartLux-Decision-4B        # 必须打印 fast kernels: active
+python -m startlux_decision.server --model StartLux-Decision-4B --port 8090
+curl -s localhost:8090/v1/systemone -H 'Content-Type: application/json' -d '{...}'</code></pre>
+  </div>
+</div>
+
+<footer>
+  报告基于 2026-10-05 抓取的仓库快照(<code>main</code> 分支)生成,涵盖 README、四篇 docs、核心包 <code>startlux_decision/</code>、<code>eval/</code>、<code>finetune/</code>、<code>demos/</code> 与 <code>results/</code> 汇总数据。
+  所有性能与 accuracy 数字均为项目方自报值,本报告仅做引用与交叉核对,未独立复现。
+</footer>
+
+</div>
+</body>
+</html>

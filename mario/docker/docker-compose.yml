@@ -1,0 +1,27 @@
+# 用官方 pin 精确复现 jev-mario harness 的运行环境。
+#
+#   docker compose -f docker/docker-compose.yml build
+#   docker compose -f docker/docker-compose.yml run --rm jev-mario
+#
+# 前提：宿主的决策服务要监听 0.0.0.0（默认只绑 127.0.0.1，容器进不来）：
+#   python -X utf8 gguf-local/startlux_local.py --model-dir models/StartLux-Decision-0.8B-Q8_0-GGUF \
+#       --llama http://127.0.0.1:8081 --host 0.0.0.0 --port 8090
+services:
+  jev-mario:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    image: jev-mario:upstream-pins
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ../jev-mario-main/runs:/work/jev-mario-main/runs
+    command:
+      - "--bot"
+      - "jev"
+      - "--level"
+      - "1-1"
+      - "--url"
+      - "http://host.docker.internal:8090/v1/systemone"
+      - "--label"
+      - "startlux-0.8b-docker"
